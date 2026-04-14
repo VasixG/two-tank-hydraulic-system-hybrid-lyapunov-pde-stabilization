@@ -20,3 +20,4 @@ build-backend = "hatchling.build"
 [project.scripts]
 two_tank_local = "two_tank_local:main"
 two_tank_hybrid = "two_tank_hybrid:main"
+two_tank_comparison = "two_tank_comparison:main"
