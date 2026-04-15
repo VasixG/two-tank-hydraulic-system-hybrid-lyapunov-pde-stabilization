@@ -496,16 +496,5 @@ Module responsibilities:
 - `figures/`: generated static plots.
 - `animations/`: generated GIF animations.
 
-The system model is separated from the controller logic, simulation is separated from plotting, and visualization does not contain core dynamics or control laws.
-
-## Repository Notes for Submission
-
-The repository now follows the required folder template: it has `README.md`, `src/`, `figures/`, `animations/`, and `configs/`. Before final submission, regenerate the plots and GIFs so that the placeholder directories contain the current outputs.
-
-The project folder name also needs to follow the course pattern:
-
-```text
-project_<number>_<topic_name>_<system_name>
-```
 
 Rename the outer project directory accordingly before submission if this repository is submitted as a course project folder.
