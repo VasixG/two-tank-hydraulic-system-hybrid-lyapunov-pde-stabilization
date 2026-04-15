@@ -327,8 +327,6 @@ For one simulation run:
    - if `W(x)>a`, apply the selected outer controller;
    - otherwise apply `u_loc`.
 10. Integrate the closed-loop dynamics with fixed-step RK4.
-11. Store time, state, control, Lyapunov value, and active mode.
-12. Generate plots and an animation from the stored result.
 
 ## Experimental Setup
 
@@ -342,8 +340,6 @@ state_max_norm = 20.0
 regularization_eps = 1e-12
 swirl_gain = 10.0 in the swirl run script
 ```
-
-The target state is the equilibrium `x = 0`. There is no reference trajectory and no parameter adaptation in the current version.
 
 ## Reproducibility
 
@@ -365,33 +361,13 @@ Run the hybrid controller with swirl:
 python3 two_tank_swirl.py
 ```
 
-With `controller.sigma_level = 0.8`, the swirl script writes to `swirl_control_big_a`. To reproduce the small switching-level case, set `controller.sigma_level = 0.1` in `configs/default.json` and run the same command; the outputs are written to `swirl_control_small_a`.
-
-Expected generated outputs:
-
-```text
-figures/hybrid_control/plots.png
-animations/hybrid_control/two_tank.gif
-figures/swirl_control_big_a/plots.png
-animations/swirl_control_big_a/two_tank.gif
-```
-
-The already generated swirl comparison artifacts are stored in:
-
-```text
-figures/swirl_control_small_a/plots.png
-animations/swirl_control_small_a/two_tank.gif
-figures/swirl_control_big_a/plots.png
-animations/swirl_control_big_a/two_tank.gif
-```
-
 ## Results Summary
 
 The final results demonstrate the following claims:
 
 1. The regular PDE hybrid controller drives the trajectory from a large initial condition into `Omega_a` and then to the origin.
 2. During the outer phase, `W(x(t))` follows the theoretical exponential curve `W(x_0)e^{-t}` up to numerical integration error.
-3. The swirl controller changes the visible phase-plane path while preserving the same Lyapunov decay law.
+3. The swirl controller changes the visible phase plane path while preserving the same Lyapunov decay law.
 4. The swirl comparison uses the same swirl controller with two switching levels: `a=0.1` and `a=0.8`.
 
 <p align="center">
@@ -402,17 +378,18 @@ The final results demonstrate the following claims:
 </p>
 
 <p align="center">
+  <img src="animations/hybrid_control/two_tank.gif" alt="two-tank hybrid animation" width="700">
+</p>
+<p align="center">
+  <em>Animation for hybrid controller without swirl.</em>
+</p>
+
+
+<p align="center">
   <img src="figures/swirl_control_small_a/plots.png" alt="swirl hybrid controller plots with small switching level" width="700">
 </p>
 <p align="center">
   <em>Swirl PDE hybrid controller with small switching level `a=0.1`: the outer swirling motion remains active longer before switching to the local stabilizer.</em>
-</p>
-
-<p align="center">
-  <img src="figures/swirl_control_big_a/plots.png" alt="swirl hybrid controller plots with large switching level" width="700">
-</p>
-<p align="center">
-  <em>Swirl PDE hybrid controller with larger switching level `a=0.8`: the trajectory enters the local region earlier.</em>
 </p>
 
 <p align="center">
@@ -422,22 +399,20 @@ The final results demonstrate the following claims:
   <em>Animation for `a=0.1`: the switching boundary is smaller, so the outer swirl phase persists longer.</em>
 </p>
 
+
+<p align="center">
+  <img src="figures/swirl_control_big_a/plots.png" alt="swirl hybrid controller plots with large switching level" width="700">
+</p>
+<p align="center">
+  <em>Swirl PDE hybrid controller with larger switching level `a=0.8`: the trajectory enters the local region earlier.</em>
+</p>
+
 <p align="center">
   <img src="animations/swirl_control_big_a/two_tank.gif" alt="two-tank swirl hybrid animation with large switching level" width="700">
 </p>
 <p align="center">
   <em>Animation for `a=0.8`: the switching boundary is larger, so the local stabilizer takes over earlier.</em>
 </p>
-
-Animation note: the state variables `h1` and `h2` are level deviations. For visualization, they are converted to absolute tank volumes by adding a target volume. This target volume is chosen dynamically so that all displayed volumes remain at least 1 liter above zero, and the tank-volume axis is scaled from the minimum displayed volume minus 1 liter to the maximum displayed volume plus 1 liter.
-
-## Current Limitations
-
-1. The code uses a fixed-step RK4 integrator rather than an adaptive ODE solver.
-2. The implementation does not impose actuator saturation.
-3. The theoretical local condition requires the selected `a` to be inside a valid local Lyapunov region; the default value should be validated for the final submission.
-4. The swirl term is implemented only for two-dimensional state spaces.
-5. The current comparison is between two switching levels of the same swirl controller. For Projects 2 and higher, the course rules may require a stronger baseline comparison if this is not accepted as a weaker/stronger version of the same method.
 
 ## Code Structure
 
