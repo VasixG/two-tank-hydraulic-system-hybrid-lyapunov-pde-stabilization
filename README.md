@@ -9,8 +9,6 @@ This project studies global stabilization of a nonlinear two-tank hydraulic syst
   <em>Concept animation: the outer controller drives the state toward the switching boundary, then the local controller stabilizes the origin.</em>
 </p>
 
-The implementation is organized as an object-oriented `src/` layout: the plant, controllers, Lyapunov functions, simulator, and visualization code are separated into modules.
-
 ## Problem Definition
 
 The control task is to stabilize the equilibrium
@@ -42,13 +40,6 @@ u_2
 ```
 
 where `u1` and `u2` are controlled inflows into the two tanks.
-
-The method class is nonlinear Lyapunov-based hybrid control. The main idea is:
-
-1. Use a local linear controller near the origin.
-2. Use an outer feedback that enforces a transport-PDE identity for a scalar function `T(x)`.
-3. Switch from the outer controller to the local controller when the trajectory reaches a certified inner Lyapunov set.
-4. Optionally add a swirl term tangent to the Lyapunov level sets.
 
 ## System Description
 
