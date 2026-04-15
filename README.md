@@ -82,25 +82,6 @@ Notation:
 - `h1, h2`: tank-level deviations.
 - `u1, u2`: control inflows.
 
-The default implementation parameters are:
-
-```text
-alpha = 2.4
-kappa = 0.8
-r = 1.0
-k = 1.2
-sigma_level = a = 0.8
-```
-
-The generated swirl comparison artifacts use two switching levels:
-
-```text
-small switching level: a = 0.1
-large switching level: a = 0.8
-```
-
-No hard input bounds are imposed in the current implementation. The simulation has an optional state norm cutoff `state_max_norm` to stop clearly invalid numerical runs.
-
 ## Mathematical Specification
 
 The linearization at the origin is
@@ -152,7 +133,7 @@ The Lyapunov function used in the code is
 W(x)=x^\top P x.
 ```
 
-The switching level is denoted by `a` in the mathematical formulas and by `sigma_level` in the code. The inner and outer regions are
+The inner and outer regions are
 
 ```math
 \Omega_a = \{x\in\mathbb{R}^2 : W(x)\le a\},
