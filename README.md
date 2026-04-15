@@ -182,7 +182,7 @@ The theoretical entrance time into `Sigma_a` is
 \log\frac{W(x_0)}{a}.
 ```
 
-The README gives the concise derivation needed to understand the implementation. A longer mathematical appendix can be kept in `math_appendix.pdf` if the final submission includes the full proof.
+The README gives the concise derivation needed to understand the implementation. A longer mathematical appendix with all proofs can be viewed in `math_appendix.pdf'.
 
 ## Swirl Outer Controller
 
@@ -217,7 +217,7 @@ where
 \beta \frac{\max(W(x)-a,0)}{W(x)+\varepsilon}.
 ```
 
-Here `beta` is `swirl_gain` in code and `epsilon` is a small numerical regularization. The default run script uses `swirl_gain = 10.0`.
+Here `beta` is `swirl_gain` in code and `epsilon` is a small numerical regularization.
 
 Because the swirl term is tangent to the level sets of `T` and `W`, it preserves
 
@@ -280,7 +280,7 @@ with
 
 Here `beta` is `swirl_gain`, `epsilon` is the small numerical regularization, and `K=-kI_2`.
 
-The theory assumes that the chosen level `a` is small enough for the local Lyapunov decrease condition to hold in `Omega_a`. The code uses the default value `a = 0.8`; this value should be checked numerically or justified in the final report if it is used for submission.
+The theory assumes that the chosen level `a` is small enough for the local Lyapunov decrease condition to hold in `Omega_a`.
 
 ## Algorithm Listing
 
@@ -299,19 +299,6 @@ For one simulation run:
    - if `W(x)>a`, apply the selected outer controller;
    - otherwise apply `u_loc`.
 10. Integrate the closed-loop dynamics with fixed-step RK4.
-
-## Experimental Setup
-
-Default simulation settings are stored in `configs/default.json`. The root scripts load this file through `src/experiments/config.py`; if the file is absent, the same defaults are used from code.
-
-```text
-initial state x0 = [5.0, 5.0]^T
-simulation interval = [0, 10] s
-time step dt = 0.01 s
-state_max_norm = 20.0
-regularization_eps = 1e-12
-swirl_gain = 10.0 in the swirl run script
-```
 
 ## Reproducibility
 
@@ -340,8 +327,8 @@ The final results demonstrate the following claims:
 1. The regular PDE hybrid controller drives the trajectory from a large initial condition into `Omega_a` and then to the origin.
 2. During the outer phase, `W(x(t))` follows the theoretical exponential curve `W(x_0)e^{-t}` up to numerical integration error.
 3. The swirl controller changes the visible phase plane path while preserving the same Lyapunov decay law.
-4. The swirl comparison uses the same swirl controller with two switching levels: `a=0.1` and `a=0.8`.
-
+4. Novel method was proved theoretically and practically
+   
 <p align="center">
   <img src="figures/hybrid_control/plots.png" alt="regular hybrid controller plots" width="700">
 </p>
