@@ -429,6 +429,3 @@ Module responsibilities:
 - `configs/default.json`: default experiment parameters recorded in a course-template-friendly format.
 - `figures/`: generated static plots.
 - `animations/`: generated GIF animations.
-
-
-Rename the outer project directory accordingly before submission if this repository is submitted as a course project folder.
