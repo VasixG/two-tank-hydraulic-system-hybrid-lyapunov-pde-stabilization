@@ -1,245 +1,511 @@
-# Two-Tank Hydraulic System Hybrid Control
+# Two-Tank Hydraulic System Hybrid Lyapunov-PDE Control
 
-This repository implements a local-global hybrid controller for a nonlinear two-tank hydraulic system. The presentation and artifact layout follow the same style as the Acrobot repository, but all mathematics, control laws, and simulation outputs here are derived from the two-tank model and the hybrid stabilization proof in `converse_control.pdf`.
+This project studies global stabilization of a nonlinear two-tank hydraulic system by a hybrid controller. The inner controller is a local linear stabilizer. The outer controller is a Lyapunov-PDE feedback that drives the state to the inner Lyapunov sublevel set in finite time. A second outer controller adds a tangential swirl term while preserving the same Lyapunov decay law.
 
 <p align="center">
-  <img src="gfx/hybrid_control/two_tank.gif" alt="hybrid stabilization of the two-tank system" width="700">
+  <img src="animations/idea.gif" alt="two-tank hybrid control idea" width="700">
 </p>
 <p align="center">
-  <em>Hybrid stabilization of the two-tank system: PDE outer control drives the state into the Lyapunov sublevel set, then local linear feedback completes convergence</em>
+  <em>Concept animation: the outer controller drives the state toward the switching boundary, then the local controller stabilizes the origin.</em>
 </p>
 
-## Overview
+The implementation is organized as an object-oriented `src/` layout: the plant, controllers, Lyapunov functions, simulator, and visualization code are separated into modules.
 
-The plant state is
+## Problem Definition
+
+The control task is to stabilize the equilibrium
 
 ```math
-x = \begin{bmatrix} h_1 \\ h_2 \end{bmatrix},
+x^\star = 0
 ```
 
-where `h1` and `h2` are deviations of tank levels from the nominal operating point. The nonlinear dynamics are
+of a nonlinear two-tank system. The state is
 
 ```math
-\dot{x} = f(x) + u,
-```
-
-with
-
-```math
-f(x) =
+x =
 \begin{bmatrix}
-\alpha \dfrac{h_1^2}{r^2 + h_1^2} h_1 + \kappa(h_2 - h_1) \\
-\alpha \dfrac{h_2^2}{r^2 + h_2^2} h_2 + \kappa(h_1 - h_2)
+h_1 \\
+h_2
+\end{bmatrix}
+\in \mathbb{R}^2,
+```
+
+where `h1` and `h2` are deviations of the two liquid levels from a nominal operating point. The control input is
+
+```math
+u =
+\begin{bmatrix}
+u_1 \\
+u_2
+\end{bmatrix}
+\in \mathbb{R}^2,
+```
+
+where `u1` and `u2` are controlled inflows into the two tanks.
+
+The method class is nonlinear Lyapunov-based hybrid control. The main idea is:
+
+1. Use a local linear controller near the origin.
+2. Use an outer feedback that enforces a transport-PDE identity for a scalar function `T(x)`.
+3. Switch from the outer controller to the local controller when the trajectory reaches a certified inner Lyapunov set.
+4. Optionally add a swirl term tangent to the Lyapunov level sets.
+
+## System Description
+
+The plant is control-affine:
+
+```math
+\dot{x} = f(x) + G(x)u.
+```
+
+For this two-tank example,
+
+```math
+G(x)=I_2,
+```
+
+and
+
+```math
+f(x)=
+\begin{bmatrix}
+\alpha \dfrac{h_1^2}{r^2+h_1^2}h_1 + \kappa(h_2-h_1) \\
+\alpha \dfrac{h_2^2}{r^2+h_2^2}h_2 + \kappa(h_1-h_2)
 \end{bmatrix}.
 ```
 
-The challenge is that the destabilizing nonlinear inflow term dominates for large level deviations, so a purely local linear controller cannot guarantee global convergence.
+Notation:
 
-**Control strategy**
+- `alpha > 0`: strength of the destabilizing nonlinear self-inflow term.
+- `kappa > 0`: coupling coefficient between the two tanks.
+- `r > 0`: saturation scale in the nonlinear term.
+- `h1, h2`: tank-level deviations.
+- `u1, u2`: control inflows.
 
-1. **Local linear control**: `u_loc(x) = -k x` stabilizes the origin in a neighborhood.
-2. **PDE-based outer control**: `u_ext(x)` enforces `\dot{W} = -W` outside the inner region.
-3. **Hybrid switching**: the controller uses `u_ext` while `W(x) > a` and switches to `u_loc` once the state enters `W(x) <= a`.
+The default implementation parameters are:
 
-## Quick Start
-
-### Installation
-
-```bash
-pip install -r requirements.txt
+```text
+alpha = 2.4
+kappa = 0.8
+r = 1.0
+k = 1.2
+sigma_level = a = 0.8
 ```
 
-### Running the Simulations
+The generated swirl comparison artifacts use two switching levels:
 
-```bash
-# Local linear controller only
-python two_tank_local.py
-
-# Hybrid controller with PDE outer law
-python two_tank_hybrid.py
-
-# Side-by-side comparison of local vs hybrid
-python two_tank_comparison.py
+```text
+small switching level: a = 0.1
+large switching level: a = 0.8
 ```
 
-All generated artifacts are saved under `gfx/`.
+No hard input bounds are imposed in the current implementation. The simulation has an optional state norm cutoff `state_max_norm` to stop clearly invalid numerical runs.
 
-## Technical Background
+## Mathematical Specification
 
-### Lyapunov Function
-
-The quadratic Lyapunov function used in the proof and code is
+The linearization at the origin is
 
 ```math
-W(x) = h_1^2 + h_2^2.
+A =
+\begin{bmatrix}
+-\kappa & \kappa \\
+\kappa & -\kappa
+\end{bmatrix},
+\qquad
+B = I_2.
 ```
 
-The switching boundary is the circle
+The local feedback is
 
 ```math
-\Omega_a = \{x \in \mathbb{R}^2 : W(x) \le a\}, \quad a = 0.8.
+u_{\mathrm{loc}}(x)=Kx,
+\qquad
+K=-kI_2,\quad k>0.
 ```
 
-### Local Controller
-
-Inside `\Omega_a`, the system uses
+The closed-loop linearization is
 
 ```math
-u_{loc}(x) = -k x.
+A_{\mathrm{cl}}=A+BK.
 ```
 
-This controller is locally asymptotically stabilizing because the linearized closed-loop matrix is Hurwitz. However, on the invariant line `h_1 = h_2 = s`, the scalar dynamics become
+Its eigenvalues are `-k` and `-(2 kappa + k)`, so `A_cl` is Hurwitz for every `k > 0`. The quadratic Lyapunov matrix `P` is computed from
 
 ```math
-\dot{s} =
-\left(
-\alpha \frac{s^2}{r^2 + s^2} - k
-\right) s,
+A_{\mathrm{cl}}^\top P + P A_{\mathrm{cl}} = -I.
 ```
 
-so for large `|s|` and `\alpha > k`, the local controller alone is not globally stabilizing.
-
-### PDE-Based Outer Controller
-
-Outside `\Omega_a`, the external controller is
+For the two-tank structure this gives
 
 ```math
-u_{ext}(x) =
--\frac{W(x) + \nabla W(x)^\top f(x)}{\|\nabla W(x)\|^2} \nabla W(x),
-\qquad x \ne 0.
+P =
+\frac{1}{2k(2\kappa+k)}
+\begin{bmatrix}
+\kappa+k & \kappa \\
+\kappa & \kappa+k
+\end{bmatrix}.
 ```
 
-For `W(x) = h_1^2 + h_2^2`, this guarantees
+The Lyapunov function used in the code is
 
 ```math
-\dot{W}(x(t)) = -W(x(t)),
+W(x)=x^\top P x.
 ```
 
-which implies the exact decay law
+The switching level is denoted by `a` in the mathematical formulas and by `sigma_level` in the code. The inner and outer regions are
+
+```math
+\Omega_a = \{x\in\mathbb{R}^2 : W(x)\le a\},
+\qquad
+D_a = \{x\in\mathbb{R}^2 : W(x)>a\}.
+```
+
+The switching surface is
+
+```math
+\Sigma_a = \{x\in\mathbb{R}^2 : W(x)=a\}.
+```
+
+In the outer region define
+
+```math
+T(x)=\log\frac{W(x)}{a},
+\qquad
+\nabla T(x)=\frac{\nabla W(x)}{W(x)}.
+```
+
+Since `G(x)=I_2`, the outer PDE controller is
+
+```math
+u_{\mathrm{ext}}(x)
+=
+-\frac{W(x)+\nabla W(x)^\top f(x)}
+{\|\nabla W(x)\|^2}\nabla W(x),
+\qquad x\in D_a.
+```
+
+This controller enforces
+
+```math
+\nabla T(x)^\top(f(x)+u_{\mathrm{ext}}(x))=-1,
+```
+
+which is equivalent to
+
+```math
+\dot{W}(x)=-W(x)
+```
+
+in the outer region. Therefore, while the trajectory stays in `D_a`,
 
 ```math
 W(x(t)) = W(x_0)e^{-t}.
 ```
 
-Therefore the theoretical entrance time into the inner region is
+The theoretical entrance time into `Sigma_a` is
 
 ```math
-\tau_{in}(x_0) = \log\left(\frac{W(x_0)}{a}\right).
+\tau_{\mathrm{in}}(x_0)
+=
+\log\frac{W(x_0)}{a}.
 ```
 
-This is the central result proven in `converse_control.pdf` and mirrored in [README-derivation.md](README-derivation.md).
+The README gives the concise derivation needed to understand the implementation. A longer mathematical appendix can be kept in `math_appendix.pdf` if the final submission includes the full proof.
 
-## Control Strategy in Detail
+## Swirl Outer Controller
 
-### 1. Local Inner Region
+The swirl controller keeps the same Lyapunov decay law but changes the path in the phase plane.
 
-If `W(x) <= a`, the controller applies
+Let
 
 ```math
-u(x) = u_{loc}(x).
+g(x)=\nabla T(x),
+\qquad
+g^\perp(x)=
+\begin{bmatrix}
+-g_2(x) \\
+g_1(x)
+\end{bmatrix}.
 ```
 
-The inner region is positively invariant under the local law.
-
-### 2. Outer PDE Region
-
-If `W(x) > a`, the controller applies
+Since `g(x)^T g^\perp(x)=0`, the tangential component does not change the transport-PDE identity. The implemented swirl control is
 
 ```math
-u(x) = u_{ext}(x).
+u_{\mathrm{sw}}(x)
+=
+u_{\mathrm{ext}}(x)
++ \omega(x)g^\perp(x),
 ```
 
-This makes the state contract exponentially toward the boundary `W = a`.
-
-### 3. Hybrid Switching Logic
-
-The full hybrid law is
+where
 
 ```math
-u(x) =
+\omega(x)
+=
+\beta \frac{\max(W(x)-a,0)}{W(x)+\varepsilon}.
+```
+
+Here `beta` is `swirl_gain` in code and `epsilon` is a small numerical regularization. The default run script uses `swirl_gain = 10.0`.
+
+Because the swirl term is tangent to the level sets of `T` and `W`, it preserves
+
+```math
+\dot{W}(x)=-W(x)
+```
+
+outside the switching surface. Its purpose is visualization and trajectory shaping, not changing the certified radial Lyapunov decrease.
+
+## Hybrid Control Law
+
+For both the regular and swirl variants, the hybrid controller applies
+
+```math
+u(x)=
 \begin{cases}
-u_{ext}(x), & W(x) > a, \\
-u_{loc}(x), & W(x) \le a.
+u_{\mathrm{outer}}(x), & W(x)>a,\\
+u_{\mathrm{loc}}(x), & W(x)\le a,
 \end{cases}
 ```
 
-In the implementation, the active mode is stored and plotted over time so the transition from PDE outer control to local feedback is visible in the result figures.
+where `u_outer` is either `u_ext` or `u_sw`.
 
-## Experiments Definition
+The explicit regular hybrid controller is
 
-### Local Control Only
+```math
+u_{\mathrm{hyb}}(x)=
+\begin{cases}
+-\dfrac{W(x)+\nabla W(x)^\top f(x)}
+{\|\nabla W(x)\|^2}\nabla W(x),
+& W(x)>a,\\[3mm]
+Kx,
+& W(x)\le a.
+\end{cases}
+```
 
-This experiment runs only the local linear stabilizer from the initial condition `x0 = [2.2, 1.8]^T`.
+The explicit swirl hybrid controller is
+
+```math
+u_{\mathrm{hyb}}^{\mathrm{sw}}(x)=
+\begin{cases}
+-\dfrac{W(x)+\nabla W(x)^\top f(x)}
+{\|\nabla W(x)\|^2}\nabla W(x)
++\omega(x)
+\begin{bmatrix}
+-\partial_{h_2}T(x)\\
+\partial_{h_1}T(x)
+\end{bmatrix},
+& W(x)>a,\\[5mm]
+Kx,
+& W(x)\le a,
+\end{cases}
+```
+
+with
+
+```math
+\omega(x)=\beta\frac{\max(W(x)-a,0)}{W(x)+\varepsilon}.
+```
+
+Here `beta` is `swirl_gain`, `epsilon` is the small numerical regularization, and `K=-kI_2`.
+
+The theory assumes that the chosen level `a` is small enough for the local Lyapunov decrease condition to hold in `Omega_a`. The code uses the default value `a = 0.8`; this value should be checked numerically or justified in the final report if it is used for submission.
+
+## Algorithm Listing
+
+For one simulation run:
+
+1. Build the two-tank plant with `alpha`, `kappa`, and `r`.
+2. Linearize the plant at `x = 0` to obtain `A` and `B`.
+3. Choose `K = -kI_2`.
+4. Compute `A_cl = A + BK` and verify that it is Hurwitz.
+5. Solve `A_cl^T P + P A_cl = -I`.
+6. Define `W(x)=x^T P x` and the switching level `a`.
+7. Build the local controller `u_loc(x)=Kx`.
+8. Build either the regular outer controller `u_ext` or the swirl outer controller `u_sw`.
+9. At each integration step:
+   - compute `W(x)`;
+   - if `W(x)>a`, apply the selected outer controller;
+   - otherwise apply `u_loc`.
+10. Integrate the closed-loop dynamics with fixed-step RK4.
+11. Store time, state, control, Lyapunov value, and active mode.
+12. Generate plots and an animation from the stored result.
+
+## Experimental Setup
+
+Default simulation settings are stored in `configs/default.json`. The root scripts load this file through `src/experiments/config.py`; if the file is absent, the same defaults are used from code.
+
+```text
+initial state x0 = [5.0, 5.0]^T
+simulation interval = [0, 10] s
+time step dt = 0.01 s
+state_max_norm = 20.0
+regularization_eps = 1e-12
+swirl_gain = 10.0 in the swirl run script
+```
+
+The target state is the equilibrium `x = 0`. There is no reference trajectory and no parameter adaptation in the current version.
+
+## Reproducibility
+
+Install dependencies:
+
+```bash
+pip install -r requirements.txt
+```
+
+Run the regular hybrid controller:
+
+```bash
+python3 two_tank_hybrid.py
+```
+
+Run the hybrid controller with swirl:
+
+```bash
+python3 two_tank_swirl.py
+```
+
+With `controller.sigma_level = 0.8`, the swirl script writes to `swirl_control_big_a`. To reproduce the small switching-level case, set `controller.sigma_level = 0.1` in `configs/default.json` and run the same command; the outputs are written to `swirl_control_small_a`.
+
+Expected generated outputs:
+
+```text
+figures/hybrid_control/plots.png
+animations/hybrid_control/two_tank.gif
+figures/swirl_control_big_a/plots.png
+animations/swirl_control_big_a/two_tank.gif
+```
+
+The already generated swirl comparison artifacts are stored in:
+
+```text
+figures/swirl_control_small_a/plots.png
+animations/swirl_control_small_a/two_tank.gif
+figures/swirl_control_big_a/plots.png
+animations/swirl_control_big_a/two_tank.gif
+```
+
+## Results Summary
+
+The final results demonstrate the following claims:
+
+1. The regular PDE hybrid controller drives the trajectory from a large initial condition into `Omega_a` and then to the origin.
+2. During the outer phase, `W(x(t))` follows the theoretical exponential curve `W(x_0)e^{-t}` up to numerical integration error.
+3. The swirl controller changes the visible phase-plane path while preserving the same Lyapunov decay law.
+4. The swirl comparison uses the same swirl controller with two switching levels: `a=0.1` and `a=0.8`.
 
 <p align="center">
-  <img src="gfx/local_control/plots.png" alt="local control plots" height="260" width="360">
-  <img src="gfx/local_control/two_tank.gif" alt="local control animation" height="260" width="360">
+  <img src="figures/hybrid_control/plots.png" alt="regular hybrid controller plots" width="700">
 </p>
 <p align="center">
-  <em>Local control only: the trajectory is stabilized near the origin in theory, but diverges from this large initial condition</em>
+  <em>Regular PDE hybrid controller: state trajectories, control inputs, phase portrait, Lyapunov decay, and switching mode.</em>
 </p>
-
-### Hybrid Control
-
-This experiment applies the PDE outer law until the trajectory enters `W(x) <= a`, then switches to the local controller.
 
 <p align="center">
-  <img src="gfx/hybrid_control/plots.png" alt="hybrid control plots" height="260" width="360">
-  <img src="gfx/hybrid_control/two_tank.gif" alt="hybrid control animation" height="260" width="360">
+  <img src="figures/swirl_control_small_a/plots.png" alt="swirl hybrid controller plots with small switching level" width="700">
 </p>
 <p align="center">
-  <em>Hybrid control: exact Lyapunov decay in the outer region and asymptotic convergence after switching to the inner controller</em>
+  <em>Swirl PDE hybrid controller with small switching level `a=0.1`: the outer swirling motion remains active longer before switching to the local stabilizer.</em>
 </p>
-
-### Comparative Analysis
-
-The comparison script is based on the combined local+hybrid simulation logic from `code.txt`, but refactored into the repository and rendered in the same output style as the Acrobot project.
 
 <p align="center">
-  <img src="gfx/comparison/plots.png" alt="comparison plots" height="260" width="360">
-  <img src="gfx/comparison/two_tank.gif" alt="comparison animation" height="260" width="360">
+  <img src="figures/swirl_control_big_a/plots.png" alt="swirl hybrid controller plots with large switching level" width="700">
 </p>
 <p align="center">
-  <em>Direct comparison: local feedback diverges from the chosen initial condition, while the hybrid law reaches the inner Lyapunov level set in finite time and converges to the origin</em>
+  <em>Swirl PDE hybrid controller with larger switching level `a=0.8`: the trajectory enters the local region earlier.</em>
 </p>
 
-## Results and Discussion
+<p align="center">
+  <img src="animations/swirl_control_small_a/two_tank.gif" alt="two-tank swirl hybrid animation with small switching level" width="700">
+</p>
+<p align="center">
+  <em>Animation for `a=0.1`: the switching boundary is smaller, so the outer swirl phase persists longer.</em>
+</p>
 
-### What Works Well
+<p align="center">
+  <img src="animations/swirl_control_big_a/two_tank.gif" alt="two-tank swirl hybrid animation with large switching level" width="700">
+</p>
+<p align="center">
+  <em>Animation for `a=0.8`: the switching boundary is larger, so the local stabilizer takes over earlier.</em>
+</p>
 
-1. **Finite-time entrance into the inner region**: in simulation, the hybrid controller reaches `W(x) <= a` at a time that matches the theoretical value `\tau_{in} = \log(W(x_0)/a)` up to numerical discretization.
-2. **Global practical behavior from large initial conditions**: unlike the local controller, the hybrid law remains bounded and converges from `x0 = [2.2, 1.8]^T`.
-3. **Exact outer-region Lyapunov shaping**: the PDE control law enforces the exponential law `W(t) = W(x_0)e^{-t}` while the trajectory stays outside the inner set.
-4. **Clear experiment artifacts**: plots and animations are now saved automatically into `gfx/local_control`, `gfx/hybrid_control`, and `gfx/comparison`.
+Animation note: the state variables `h1` and `h2` are level deviations. For visualization, they are converted to absolute tank volumes by adding a target volume. This target volume is chosen dynamically so that all displayed volumes remain at least 1 liter above zero, and the tank-volume axis is scaled from the minimum displayed volume minus 1 liter to the maximum displayed volume plus 1 liter.
 
-### Current Limitations
+## Current Limitations
 
-1. **Simple RK4 integrator**: the simulation uses a fixed-step RK4 method, which is sufficient here but not as robust as adaptive solvers for stiff or more extreme regimes.
-2. **Hard divergence clipping**: the local-only simulation is truncated when the state exceeds `STATE_MAX`, so the plot visualizes divergence safely rather than letting the numerics blow up.
-3. **No parameter sweep**: the repository demonstrates the theory for one nominal parameter set and one representative initial condition.
-
-### Why Hybrid Beats Local
-
-The local controller fails because its stabilizing action is only guaranteed in a neighborhood of the origin. The outer PDE law fixes exactly that gap: it constructs a directional control action that forces the quadratic Lyapunov function to decay exponentially until the system is handed off to the local stabilizer.
+1. The code uses a fixed-step RK4 integrator rather than an adaptive ODE solver.
+2. The implementation does not impose actuator saturation.
+3. The theoretical local condition requires the selected `a` to be inside a valid local Lyapunov region; the default value should be validated for the final submission.
+4. The swirl term is implemented only for two-dimensional state spaces.
+5. The current comparison is between two switching levels of the same swirl controller. For Projects 2 and higher, the course rules may require a stronger baseline comparison if this is not accepted as a weaker/stronger version of the same method.
 
 ## Code Structure
 
-The repository is organized the same way as the Acrobot project: a shared model module plus dedicated experiment entry points.
+```text
+.
+├── README.md
+├── requirements.txt
+├── configs/
+│   └── default.json
+├── figures/
+│   ├── hybrid_control/
+│   ├── swirl_control_small_a/
+│   └── swirl_control_big_a/
+├── animations/
+│   ├── idea.gif
+│   ├── hybrid_control/
+│   ├── swirl_control_small_a/
+│   └── swirl_control_big_a/
+├── two_tank_hybrid.py
+├── two_tank_swirl.py
+└── src/
+    ├── cli.py
+    ├── core/
+    │   ├── interfaces.py
+    │   └── types.py
+    ├── systems/
+    │   └── two_tank.py
+    ├── lyapunov/
+    │   └── quadratic.py
+    ├── controllers/
+    │   ├── local.py
+    │   ├── outer.py
+    │   ├── swirl.py
+    │   └── hybrid.py
+    ├── simulation/
+    │   ├── rk4.py
+    │   └── simulator.py
+    ├── experiments/
+    │   ├── config.py
+    │   └── two_tank_setup.py
+    └── visualization/
+        └── two_tank.py
+```
 
-- [common.py](common.py): system parameters, nonlinear drift, local/PDE/hybrid laws, RK4 integration, plotting helpers, and animation utilities
-- [two_tank_local.py](two_tank_local.py): local-only experiment and artifact generation
-- [two_tank_hybrid.py](two_tank_hybrid.py): hybrid experiment and artifact generation
-- [two_tank_comparison.py](two_tank_comparison.py): combined local-vs-hybrid plots and animation derived from `code.txt`
-- [README-derivation.md](README-derivation.md): detailed mathematical derivation and proof
+Module responsibilities:
 
-## Mathematical Details
+- `core/`: abstract interfaces and shared array typing helpers.
+- `systems/`: the two-tank plant and its linearization.
+- `lyapunov/`: construction of the quadratic Lyapunov matrix and `W(x)`.
+- `controllers/`: local, PDE outer, swirl outer, and hybrid switching controllers.
+- `simulation/`: RK4 integration and closed-loop simulation result containers.
+- `experiments/`: default parameters and setup factories.
+- `visualization/`: plots, phase portraits, mode plots, and GIF animation helpers.
+- root scripts: reproducible command-line entry points.
+- `configs/default.json`: default experiment parameters recorded in a course-template-friendly format.
+- `figures/`: generated static plots.
+- `animations/`: generated GIF animations.
 
-For the full proof of global asymptotic stability and the explicit derivation of the outer control law, see:
+The system model is separated from the controller logic, simulation is separated from plotting, and visualization does not contain core dynamics or control laws.
 
-- [README-derivation.md](README-derivation.md)
-- `C:\Users\user\Downloads\acrobot-friction-adaptive-control-main\converse_control.pdf`
+## Repository Notes for Submission
 
-## References
+The repository now follows the required folder template: it has `README.md`, `src/`, `figures/`, `animations/`, and `configs/`. Before final submission, regenerate the plots and GIFs so that the placeholder directories contain the current outputs.
 
-1. The local proof notes in `converse_control.pdf`.
-2. The repository derivation in [README-derivation.md](README-derivation.md).
+The project folder name also needs to follow the course pattern:
+
+```text
+project_<number>_<topic_name>_<system_name>
+```
+
+Rename the outer project directory accordingly before submission if this repository is submitted as a course project folder.
